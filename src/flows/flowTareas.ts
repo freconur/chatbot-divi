@@ -6,6 +6,8 @@ import dotenv from 'dotenv'
 import { MemoryDB as Database } from '@builderbot/bot'
 import { BaileysProvider as Provider } from '@builderbot/provider-baileys'
 import fsPromises from "node:fs/promises";
+import { opcionesEstudianteFlow } from "~/app";
+// import { opcionesEstudianteFlow } from "../app";
 dotenv.config()
 const todayTaskFlow = addKeyword(["1", "hoy"])
   .addAnswer(['Estamos buscando las tareas del dia de hoy', 'te respondemos en un minuto'], { capture: false }, async (ctx, { flowDynamic, fallBack, state, gotoFlow }) => {
@@ -51,6 +53,7 @@ const todayTaskFlow = addKeyword(["1", "hoy"])
               await page.evaluate(() => {
                 window.scrollTo(0, 0);
               });
+              
               await page.pdf({
                 path: `${state.get('grade')}-${currentDate()}-${currentMonthNumber()}.pdf`,
                 // path: `testing-2024.pdf`,
@@ -65,8 +68,20 @@ const todayTaskFlow = addKeyword(["1", "hoy"])
             }, 9000)
   })
 
+  export const hacerOtraConsulta = addKeyword<Provider, Database>(EVENTS.ACTION)
+  .addAnswer(['Quieres hacer otra consulta?', '*1-* Si', '*2-* Terminar'] , { capture: true }, async (ctx, { fallBack, flowDynamic,gotoFlow,endFlow }) => {
+    const rtaCtx = ctx.body
+    if (rtaCtx === "1") {
+        // await flowDynamic('Porfavor escribe una opción valida')
+        return gotoFlow(opcionesEstudianteFlow)
+        // return fallBack()
+    }
+    if(rtaCtx === "2") {
+      return endFlow('Que tengas buena dia, escribeme si tienes mas consultas.')
+    }
+  }, [])
 export const enviarTareaEstudiante = addKeyword<Provider, Database>(EVENTS.ACTION)
-  .addAnswer('Se ha generado el reporte de tarea exitosamente. ', null, async (_, { state, flowDynamic }) => {
+  .addAnswer('Se ha generado el reporte de tarea exitosamente. ', null, async (_, { state, flowDynamic, gotoFlow }) => {
     console.log('segundo')
     await flowDynamic([{
       body: `Look at this`,
@@ -75,12 +90,15 @@ export const enviarTareaEstudiante = addKeyword<Provider, Database>(EVENTS.ACTIO
     // if(state.get('dniUsuario').length === 8){
     // console.log(`archivo ha sido borrado`, 'state.get(dniUsuario)', state.get('dniUsuario'));
     await fsPromises.unlink(`${state.get('grade')}-${state.get('date')}-${state.get('month')}.pdf`);
-
+    //tendria que hacer la pregunta si quieres hacer otra consulta con las opciones de si o terminar.
+    // await flowDynamic('Quieres hacer otra consulta?')
+    return gotoFlow(hacerOtraConsulta)
     // }
   })
 
 const todayTaskDate = addKeyword(["1", "fecha"])
-  .addAnswer(['De que fecha quieres la tarea?, ejemplo: *1/mayo*'], { capture: true }, async (ctx, { flowDynamic, fallBack, state, gotoFlow }) => {
+  .addAnswer(['De que fecha quieres la tarea?, ejemplo: *1/mayo*'], { capture: true }, 
+    async (ctx, { flowDynamic, fallBack, state, gotoFlow }) => {
     const monthRta: string = ctx.body.toString().toLowerCase()
 
     if (monthRta.includes("/")) {
@@ -110,7 +128,7 @@ const todayTaskDate = addKeyword(["1", "fecha"])
           if (indexMonth) {
             const page = await browser.newPage()
             // http://localhost:3000/tareas?fecha=17&mes=4&ano=2024&grado=9
-            await page.goto(`${process.env.PRIVATE_URL}/tareas?fecha=${mm[0]}&mes=${indexMonth}&ano=${currentYear()}&grado=${state.get('grade')}`, { waitUntil: "networkidle2" })
+            await page.goto(`${process.env.PRIVATE_URL}/tareas?fecha=${mm[0]}&mes=${indexMonth}&ano=${currentYear()}&grado=${state.get('grade')}`, { waitUntil: "domcontentloaded" })
 
             setTimeout(async () => {
               await page.setViewport({ width: 1366, height: 768 });
@@ -135,6 +153,9 @@ const todayTaskDate = addKeyword(["1", "fecha"])
               await page.evaluate(() => {
                 window.scrollTo(0, 0);
               });
+              // await page.waitForNavigation({
+              //   waitUntil: 'networkidle0',
+              // });
               await page.pdf({
                 path: `${state.get('grade')}-${mm[0]}-${mm[1]}.pdf`,
                 // path: `testing-2024.pdf`,

@@ -7,7 +7,8 @@ import dotenv from 'dotenv'
 import puppeteer from 'puppeteer';
 import fsPromises from "node:fs/promises";
 import { months } from 'date'
-import { enviarTareaEstudiante, tareasEstudiantesFlow } from './flows/flowTareas'
+import { enviarTareaEstudiante, hacerOtraConsulta, tareasEstudiantesFlow } from './flows/flowTareas'
+import { cuadernoControlFlow, enviarCuadernoControl } from './flows/flowCuadernoControl'
 dotenv.config()
 const PORT = process.env.PORT ?? 3008
 // const PORT = 3000
@@ -69,16 +70,17 @@ const fullSamplesFlow = addKeyword<Provider, Database>(['samples', utils.setEven
 /// apartir de aqui vciene el codigo para el chatbot divi
 
 const enviarAsistenciaFlow = addKeyword<Provider, Database>(EVENTS.ACTION)
-    .addAnswer('Se ha generado el reporte de asistencia exitosamente. ', null, async (_, { state, flowDynamic }) => {
+    .addAnswer('Se ha generado el reporte de asistencia exitosamente. ', null, async (_, { state, flowDynamic, gotoFlow }) => {
         console.log('segundo')
         await flowDynamic([{
             body: `Look at this`,
             media: join(`${state.get('dniUsuario')}-asistencia-${state.get('mes')}.pdf`)
+            // media: join(`cpp.xlsx`) //estoy probando si se puede enviar archivos excel, word y power point
         }])
         // if(state.get('dniUsuario').length === 8){
         // console.log(`archivo ha sido borrado`, 'state.get(dniUsuario)', state.get('dniUsuario'));
         await fsPromises.unlink(`${state.get('dniUsuario')}-asistencia-${state.get('mes')}.pdf`);
-
+        return gotoFlow(hacerOtraConsulta)
         // }
     })
 
@@ -211,14 +213,17 @@ const asistenciaEmployeeFlow = addKeyword(['1', 'asistencia', 'asistencias'])
         }
     })
 
-const opcionesEstudianteFlow = addKeyword<Provider, Database>(EVENTS.ACTION)
-    .addAnswer(['Estas son las opciones que tenemos para ti. Selecciona una opción, escribiendo un número.', '*1-* Asistencia', '*2-* Tareas'], { capture: true }, async (ctx, { fallBack, flowDynamic }) => {
+export const opcionesEstudianteFlow = addKeyword<Provider, Database>(EVENTS.ACTION)
+    .addAnswer(['Estas son las opciones que tenemos para ti. Selecciona una opción, escribiendo un número.', '*1-* Asistencia', '*2-* Tareas', '*3-* Cuaderno de control', '*4-* Terminar'], { capture: true }, async (ctx, { fallBack, flowDynamic, endFlow }) => {
         const rtaCtx = ctx.body
-        if (Number(rtaCtx) !== 1 && Number(rtaCtx) !== 2) {
+        if (Number(rtaCtx) !== 1 && Number(rtaCtx) !== 2 && Number(rtaCtx) !== 3 && Number(rtaCtx) !== 4) {
             await flowDynamic('*Porfavor escribe una opción valida*')
             return fallBack()
         }
-    }, [asistenciaEstudianteFlow, tareasEstudiantesFlow])
+        if(Number(rtaCtx) === 4) {
+            return endFlow('Que tengas buena dia, escribeme si tienes mas consultas.')
+        }
+    }, [asistenciaEstudianteFlow, tareasEstudiantesFlow, cuadernoControlFlow])
 
 const opcionesEmployeesFlow = addKeyword<Provider, Database>(EVENTS.ACTION)
     .addAnswer(['Estas son las opciones que tenemos para ti. Selecciona una opción, escribiendo un número.', '*1-* Asistencia'], { capture: true }, async (ctx, { fallBack, flowDynamic }) => {
@@ -275,7 +280,7 @@ const bienvenidaFlow = addKeyword<Provider, Database>(EVENTS.WELCOME)
 
 const main = async () => {
     // const adapterFlow = createFlow([welcomeFlow, registerFlow, fullSamplesFlow])
-    const adapterFlow = createFlow([bienvenidaFlow, opcionesEstudianteFlow, enviarAsistenciaFlow, validacionDniFlow, opcionesEmployeesFlow,enviarTareaEstudiante])
+    const adapterFlow = createFlow([bienvenidaFlow, opcionesEstudianteFlow, enviarAsistenciaFlow, validacionDniFlow, opcionesEmployeesFlow,enviarTareaEstudiante, enviarCuadernoControl, hacerOtraConsulta])
 
     const adapterProvider = createProvider(Provider) as any
     const adapterDB = new Database()
